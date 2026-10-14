@@ -43,6 +43,7 @@ FIXED_MESSAGES_PATH = _path("FIXED_MESSAGES_PATH", "prompts/fixed_messages.json"
 
 # LLM 연결 확인용
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:9b")
 CLOUD_API_KEY_ENV = os.getenv("CLOUD_API_KEY_ENV", "OPENAI_API_KEY")  # 상용 API 키가 들어 있는 환경 변수 이름
 
 # 실행 기록 (Git 제외: /logs/)

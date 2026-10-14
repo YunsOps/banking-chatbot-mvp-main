@@ -1,5 +1,6 @@
 /data/
-/model//models/
+/model/
+/models/
 /logs/
 /.venv/
 .env
