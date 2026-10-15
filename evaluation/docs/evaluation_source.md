@@ -4,7 +4,7 @@
 
 ```text
 banking-chatbot-mvp-main/
-├── app/ tests/ training/ docs/ prompts/            ← 팀원 코드 (수정하지 않음)
+├── app/ training/ prompts/                       ← 서비스·학습 코드
 └── evaluation/
     ├── README.md               실행 방법 (팀 공유용)
     ├── requirements.txt        -r ../requirements.txt + langchain-openai==1.7.1 (평가 모델 호출)
@@ -101,7 +101,7 @@ uv run python evaluation\scripts\build_questions.py [--compare-csv train.csv val
 uv run python evaluation\scripts\run_api_batch.py --run-id api_dev_01            # 서버 실행 중일 때
 uv run python evaluation\scripts\judge_answers.py --run-dir evaluation\results\api_dev_01
 uv run python evaluation\scripts\build_report.py --run-dir evaluation\results\api_dev_01 --name report_dev_01
-uv run python -m pytest evaluation\tests tests -q -p no:cacheprovider
+uv run python -m pytest evaluation\tests -q -p no:cacheprovider
 ```
 
 | 확인 항목 | 상태 |
@@ -109,4 +109,6 @@ uv run python -m pytest evaluation\tests tests -q -p no:cacheprovider
 | 단위·흐름 테스트 (가짜 분류기·생성 함수·평가 모델) | 24개 통과 (평가 5: 배치→채점→보고서, 배치·예외 시나리오, 프롬프트 파싱, 비밀값 검사, API 주소 설정 / 팀원 19) |
 | 실제 평가 모델(`gpt-6-luna`) 호출 | 목업 답변 144건 채점 성공 (채점 오류 0건). 같은 답변의 반복 간 점수 편차 있음 → 7.2 평가 모델 신뢰도 |
 | 실제 서버 대상 배치 | **미실행** |
+
+위 24개 통과는 루트 `tests/` 삭제 전의 검증 기록입니다. 현재는 서비스 실행에 불필요한 루트 `tests/`를 제거했으며, 위 실행 명령은 `evaluation/tests/`만 검증합니다.
 

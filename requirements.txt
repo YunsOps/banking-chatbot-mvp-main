@@ -1,6 +1,5 @@
 fastapi
 uvicorn
 httpx
-pytest
 python-dotenv
 langchain-ollama==1.1.0

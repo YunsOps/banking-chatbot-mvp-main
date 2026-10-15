@@ -112,6 +112,8 @@ uv run python evaluation\scripts\run_api_batch.py --questions evaluation\questio
 
 ## 테스트
 
+`evaluation/`은 LLM 답변 품질 평가 도구이며, `evaluation/tests/`는 이 도구의 동작을 검증하는 개발용 테스트입니다. 서비스 실행에는 필요하지 않습니다. 테스트용 `pytest`는 `evaluation/requirements.txt`에 포함됩니다.
+
 ```powershell
 uv run python -m pytest evaluation\tests -q -p no:cacheprovider
 ```

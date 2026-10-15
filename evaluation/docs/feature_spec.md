@@ -183,7 +183,7 @@ build_report.py ──▶ reports/<name>.md, <name>_metrics.csv
 | 2 | 의존성 설치 | `uv pip install --python .venv\Scripts\python.exe -r evaluation\requirements.txt` | 서비스 의존성 + `langchain-openai` |
 | 3 | 설정 입력 | 저장소 루트 `.env`의 평가 구역에 값 입력 (아래 5.4) | `EVAL_API_BASE_URL`, `OPENAI_API_KEY`, `JUDGE_MODEL` |
 | 4 | 콘솔 한글 설정 | `$env:PYTHONIOENCODING = "utf-8"` (터미널마다) | 한글 출력이 깨지지 않음 |
-| 5 | 코드 동작 확인 | `uv run python -m pytest evaluation\tests tests -q -p no:cacheprovider` | 모두 통과 |
+| 5 | 평가 도구 동작 확인 | `uv run python -m pytest evaluation\tests -q -p no:cacheprovider` | 모두 통과 |
 
 ### 5.2 평가 실행 (개발용 세트)
 
