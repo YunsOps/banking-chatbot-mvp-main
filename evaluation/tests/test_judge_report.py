@@ -2,6 +2,7 @@
 
 import csv
 import json
+import shutil
 import sys
 from contextlib import nullcontext
 
@@ -148,3 +149,29 @@ def test_배치_채점_보고서(tmp_path, monkeypatch):
         metrics = {row["model"]: row for row in csv.DictReader(file)}
     assert metrics["local"]["usable_rate"] == "1.0" and metrics["cloud"]["failure"] == "2"
     assert metrics["local"]["latency_generate_n"] == "4"  # 생성 호출이 있는 성공 요청 (T-01·T-03 × 2회)
+
+    # 4) 통합 보고서: 다른 서버 모델로 실행한 결과를 하나 더 두고, 상위 폴더를 주면 결과 폴더를 모두 찾아 비교
+    other_dir = tmp_path / "api_test_b"
+    shutil.copytree(run_dir, other_dir)
+    other_config = json.loads((other_dir / "run_config.json").read_text(encoding="utf-8"))
+    other_config.update(run_id="api_test_b", model_ids={"local": "other-model", "cloud": None})
+    (other_dir / "run_config.json").write_text(json.dumps(other_config, ensure_ascii=False), encoding="utf-8")
+    assert build_report.find_run_dirs([tmp_path]) == [run_dir, other_dir]
+    assert build_report.find_run_dirs([tmp_path / "api_test*", run_dir]) == [run_dir, other_dir]  # 와일드카드, 중복 제거
+
+    def combined_report():
+        monkeypatch.setattr(sys, "argv", ["build_report.py", "--run-dir", str(tmp_path),
+                                          "--output-dir", str(tmp_path / "reports"), "--name", "combined"])
+        build_report.main()
+        return (tmp_path / "reports" / "combined.md").read_text(encoding="utf-8")
+
+    report = combined_report()
+    assert "## 통합 비교 (실행 2개, 비교 대상 4개)" in report
+    assert "api_test_b · 로컬 LLM (other-model)" in report
+    assert "### 공통 사례 비교 (모든 비교 대상이 판정 가능한 4건)" in report and "⚠" not in report.split("### 모델별 비교")[0]
+    assert "## 1. 챗봇 서비스 배치 평가" in report and "## 2. 챗봇 서비스 배치 평가" in report
+
+    other_config["questions"]["sha256"] = "0" * 64  # 다른 질문 파일로 실행한 경우
+    (other_dir / "run_config.json").write_text(json.dumps(other_config, ensure_ascii=False), encoding="utf-8")
+    report = combined_report()
+    assert "⚠ 질문 파일·정책표가 실행마다 다릅니다" in report and "### 공통 사례 비교 (모든 비교 대상" not in report

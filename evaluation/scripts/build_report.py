@@ -1,6 +1,8 @@
 """생성 모델 비교 보고서: /chat 응답(responses)과 평가 모델 채점(judge_scores)으로 지표를 집계하고 Markdown 보고서 작성.
 
-- 입력: run_api_batch.py 결과 폴더 하나 이상 (judge_answers.py 채점 후)
+- 입력: run_api_batch.py 결과 폴더 하나 이상 (judge_answers.py 채점 후).
+  상위 폴더(예: evaluation/results)를 주면 하위 결과 폴더를 모두 찾고, 와일드카드(api_final_*)도 쓸 수 있다
+- 통합 비교: 실행이 2개 이상이면 모든 (실행, 모델)을 한 표로 비교. 질문 파일·평가 기준이 다르면 경고
 - 품질: 사용 가능 답변 비율, 판정 분포, 항목별 평균 점수, 공통 사례 비교, 정책별 비교, 대표 사례
 - 응답 시간: 생성 시간(latency_s.generate)과 서비스 전체 시간(latency_s.total)을 따로 집계. 성공 요청만, 건수 표시
 - 실패: 호출 실패·시간 초과·빈 응답 건수와 실패율을 제외하지 않고 별도 집계
@@ -15,6 +17,7 @@
 """
 
 import argparse
+import glob
 import json
 import os
 import statistics
@@ -39,10 +42,28 @@ def price(name):
     return float(value) if value else None
 
 
+def find_run_dirs(paths) -> list[Path]:
+    """--run-dir 값을 결과 폴더 목록으로. 결과 폴더는 그대로, 상위 폴더는 하위 결과 폴더 전체, 와일드카드는 펼쳐서 처리."""
+    found, seen = [], set()
+    for path in paths:
+        dirs = []
+        # PowerShell은 와일드카드를 펼치지 않으므로 여기서 처리
+        for match in [Path(p) for p in sorted(glob.glob(str(path)))] or [path]:
+            if (match / "run_config.json").exists():
+                dirs.append(match)
+            elif match.is_dir():
+                dirs += sorted(config.parent for config in match.rglob("run_config.json"))
+        if not dirs:
+            raise SystemExit(f"{path}에 실행 결과(run_config.json)가 없습니다. "
+                             f"먼저 run_api_batch.py --run-id {path.name} 로 배치를 실행하고 judge_answers.py로 채점하세요.")
+        for run_dir in dirs:
+            if run_dir.resolve() not in seen:
+                seen.add(run_dir.resolve())
+                found.append(run_dir)
+    return found
+
+
 def load_run(run_dir: Path) -> dict:
-    if not (run_dir / "run_config.json").exists():
-        raise SystemExit(f"{run_dir}에 실행 결과(run_config.json)가 없습니다. "
-                         f"먼저 run_api_batch.py --run-id {run_dir.name} 로 배치를 실행하고 judge_answers.py로 채점하세요.")
     config = json.loads((run_dir / "run_config.json").read_text(encoding="utf-8"))
     judge_config_path = run_dir / "judge_config.json"
     return {
@@ -122,10 +143,19 @@ def model_metrics(run, model, keys=None):
     }
 
 
-def common_keys(run, models):
-    """모든 모델이 판정 가능(실패·미채점 아님)한 (반복, 질문 ID)."""
+def run_models(run):
+    return [model for model in ("local", "cloud") if model in run["config"]["models_run"]]
+
+
+def candidate_name(run, model):
+    """통합 비교의 열 이름: 실행 · 모델 (서버 모델 이름)."""
+    return f"{run['config']['run_id']} · {MODEL_NAMES[model]} ({run['config'].get('model_ids', {}).get(model) or '-'})"
+
+
+def common_keys(pairs):
+    """모든 (실행, 모델)이 판정 가능(실패·미채점 아님)한 (반복, 질문 ID)."""
     keys = None
-    for model in models:
+    for run, model in pairs:
         model_keys = {
             (int(row["repeat"]), row["question_id"]) for row in run["rows"]
             if row["model"] == model and row_verdict(row, run["scores"].get(row_key(row))) not in (VERDICT_FAILED, VERDICT_UNJUDGED)
@@ -198,11 +228,12 @@ def latency_text(values):
     return f"{fmt(values['mean'])} / {fmt(values['median'])} / {fmt(values['p90'])} ({values['n']}건)"
 
 
-def metrics_table(metrics_by_model, models):
+def metrics_table(columns):
+    """columns: [(열 제목, model_metrics 결과)]."""
     def row(title, getter):
-        return [title] + [getter(metrics_by_model[model]) for model in models]
+        return [title] + [getter(metrics) for _, metrics in columns]
 
-    return table(["항목"] + [f"{MODEL_NAMES[m]} ({metrics_by_model[m]['model_id'] or '-'})" for m in models], [
+    return table(["항목"] + [header for header, _ in columns], [
         row("요청 수", lambda m: m["requests"]),
         row("**사용 가능 답변 비율** (전체 요청 대비)", lambda m: fmt(m["usable_rate"], True)),
         row("사용 가능 비율 (채점 건 대비)", lambda m: fmt(m["usable_rate_judged"], True)),
@@ -225,13 +256,13 @@ def policy_name(row):
     return f"{row.get('policy_id') or '-'} {row.get('policy_name') or ''}".strip()
 
 
-def policy_table(run, models):
-    """정책(policy_id)별 사용 가능 건수와 정확성 평균."""
-    policies = sorted({policy_name(row) for row in run["rows"]})
+def policy_table(candidates):
+    """정책(policy_id)별 사용 가능 건수와 정확성 평균. candidates: [(열 제목, 실행, 모델)]."""
+    policies = sorted({policy_name(row) for _, run, _ in candidates for row in run["rows"]})
     rows = []
     for policy in policies:
         cells = [policy]
-        for model in models:
+        for _, run, model in candidates:
             subset = [(row, run["scores"].get(row_key(row))) for row in run["rows"]
                       if row["model"] == model and policy_name(row) == policy]
             usable = sum(1 for row, score in subset if row_verdict(row, score) == VERDICT_USABLE)
@@ -239,7 +270,7 @@ def policy_table(run, models):
             acc = mean([score["accuracy"] for score in judged])
             cells.append(f"{usable}/{len(subset)} (정확성 {fmt(acc)})")
         rows.append(cells)
-    return table(["정책"] + [f"{MODEL_NAMES[m]} 사용 가능 (정확성 평균)" for m in models], rows)
+    return table(["정책"] + [f"{header} 사용 가능 (정확성 평균)" for header, _, _ in candidates], rows)
 
 
 def case_examples(run, model, limit):
@@ -354,9 +385,64 @@ def record_section(number):
     return lines + [""]
 
 
+def service_versions(config):
+    return ", ".join(f"{name} {digest[:8]}" for name, digest in config.get("service_files_sha256", {}).items()) or "-"
+
+
+def judge_text(run):
+    judge = run["judge_config"]
+    return f"{judge['judge_model']} (프롬프트 {judge['judge_prompt_sha256'][:8]})" if judge else "미채점"
+
+
+def combined_section(runs):
+    """여러 실행의 모든 (실행, 모델)을 한 표로 비교."""
+    candidates = [(candidate_name(run, m), run, m) for run in runs for m in run_models(run)]
+    lines = [f"## 통합 비교 (실행 {len(runs)}개, 비교 대상 {len(candidates)}개)", ""]
+
+    def condition_row(run):
+        config, questions = run["config"], run["config"]["questions"]
+        return [f"`{config['run_id']}`", config["started_at"],
+                f"{questions['file']} ({questions['count']}건, {questions['sha256'][:8]})", config["repeats"],
+                ", ".join(f"{MODEL_NAMES[m]}={config.get('model_ids', {}).get(m) or '-'}" for m in run_models(run)) or "-",
+                judge_text(run), service_versions(config)]
+
+    lines += ["### 실행 조건 비교", ""]
+    lines += table(["실행", "시작 시간", "질문 파일 (건수, sha256)", "반복", "모델", "평가 모델", "서비스 파일 버전"],
+                   [condition_row(run) for run in runs])
+
+    # 같은 질문·같은 채점 기준일 때만 수치를 직접 비교할 수 있음
+    same_questions = len({(run["config"]["questions"]["sha256"], run["config"]["questions"].get("policies_sha256"))
+                          for run in runs}) == 1
+    warnings = []
+    if not same_questions:
+        warnings.append("질문 파일·정책표가 실행마다 다릅니다. 같은 질문 기준 비교가 아니므로 수치는 참고용이며 공통 사례 비교는 생략합니다.")
+    if len({judge_text(run) for run in runs}) > 1:
+        warnings.append("평가 모델·평가 프롬프트가 실행마다 다르거나 미채점 실행이 있습니다. 점수 기준이 달라 직접 비교하기 어렵습니다.")
+    if len({service_versions(run["config"]) for run in runs}) > 1:
+        warnings.append("서비스 파일(프롬프트·정책) 버전이 실행마다 다릅니다. 모델 차이와 프롬프트 차이가 함께 반영된 결과입니다.")
+    if warnings:
+        lines += [""] + [f"- ⚠ {warning}" for warning in warnings]
+
+    lines += ["", "### 모델별 비교 (전체 요청)", ""]
+    lines += metrics_table([(name, model_metrics(run, model)) for name, run, model in candidates])
+
+    if same_questions and len(candidates) > 1:
+        keys = common_keys([(run, model) for _, run, model in candidates])
+        common = [(name, model_metrics(run, model, keys)) for name, run, model in candidates]
+        lines += ["", f"### 공통 사례 비교 (모든 비교 대상이 판정 가능한 {len(keys)}건)", ""]
+        lines += table(["항목"] + [name for name, _ in common], [
+            ["사용 가능 비율"] + [fmt(m["usable_rate"], True) for _, m in common],
+            *[[f"{SCORE_NAMES[i]} 평균"] + [fmt(m[f"{i}_mean"]) for _, m in common] for i in SCORE_ITEMS],
+        ])
+
+    lines += ["", "### 정책별 비교", ""] + policy_table(candidates)
+    lines += ["", "실행별 상세(대표 사례·자원·운영 조건)와 로컬·상용 규칙 기반 추천은 아래 실행별 절에 있다.", ""]
+    return lines
+
+
 def run_section(run, number, ties, limit):
     config, judge = run["config"], run["judge_config"]
-    models = [model for model in ("local", "cloud") if model in config["models_run"]]
+    models = run_models(run)
     metrics = {model: model_metrics(run, model) for model in models}
     lines = [f"## {number}. 챗봇 서비스 배치 평가 (POST /chat) — `{config['run_id']}`", ""]
 
@@ -377,15 +463,16 @@ def run_section(run, number, ties, limit):
         ["생성 설정 (출력 제한 등)", json.dumps(config.get("generation_settings") or "미기록", ensure_ascii=False)],
         ["분류기", json.dumps(config.get("health", {}).get("classifier"), ensure_ascii=False)],
         ["평가 모델", f"{judge['judge_model']} (프롬프트 sha256 {judge['judge_prompt_sha256'][:12]}…, 채점 {judge['judged']}건, 채점 오류 {judge['judge_errors']}건)" if judge else "미채점"],
-        ["서비스 파일 버전", ", ".join(f"{name} {digest[:8]}" for name, digest in config.get("service_files_sha256", {}).items()) or "-"],
+        ["서비스 파일 버전", service_versions(config)],
     ])
 
-    lines += ["", f"### {number}.2 모델별 비교 (전체 요청)", ""] + metrics_table(metrics, models)
+    lines += ["", f"### {number}.2 모델별 비교 (전체 요청)", ""]
+    lines += metrics_table([(f"{MODEL_NAMES[m]} ({metrics[m]['model_id'] or '-'})", metrics[m]) for m in models])
     lines.append("\n생성 시간은 서버에서 생성 LLM 호출 시작부터 전체 답변 수신까지(`latency_s.generate`), "
                  "서비스 전체 시간은 질문 접수부터 응답까지(`latency_s.total`)다. 분류기 1차 차단은 생성 호출이 없어 생성 시간 집계에서 빠진다.")
 
     if len(models) == 2:
-        keys = common_keys(run, models)
+        keys = common_keys([(run, m) for m in models])
         common = {model: model_metrics(run, model, keys) for model in models}
         total_pairs = len({(int(r["repeat"]), r["question_id"]) for r in run["rows"]})
         lines += ["", f"### {number}.3 공통 사례 비교 (두 모델 모두 판정 가능한 {len(keys)}건)", ""]
@@ -396,7 +483,7 @@ def run_section(run, number, ties, limit):
         lines.append(f"\n전체 평가 {total_pairs}건(모델별) 중 판정 불가(한쪽 이상 실패·미채점) {total_pairs - len(keys)}건 "
                      f"({fmt(rate(total_pairs - len(keys), total_pairs), True)})")
 
-    lines += ["", f"### {number}.4 정책별 비교", ""] + policy_table(run, models)
+    lines += ["", f"### {number}.4 정책별 비교", ""] + policy_table([(MODEL_NAMES[m], run, m) for m in models])
 
     if len(models) == 2:
         comparison = compare(metrics, ties)
@@ -444,17 +531,20 @@ def limitations(runs):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--run-dir", type=Path, nargs="+", required=True, help="결과 폴더 (여러 개 가능)")
+    parser.add_argument("--run-dir", type=Path, nargs="+", required=True,
+                        help="결과 폴더. 여러 개, 상위 폴더(하위 결과 폴더 전체), 와일드카드(api_final_*) 가능")
     parser.add_argument("--output-dir", type=Path, default=REPORTS_DIR)
-    parser.add_argument("--name", help="보고서 파일 이름 (기본: report_<첫 run_id>)")
+    parser.add_argument("--name", help="보고서 파일 이름 (기본: 실행 1개면 report_<run_id>, 여러 개면 report_combined_<시각>)")
     parser.add_argument("--usable-tie", type=float, default=0.05, help="사용 가능 비율 차이 기준 (기본 0.05 = 5%%p)")
     parser.add_argument("--accuracy-tie", type=float, default=0.1, help="정확성 평균 차이 기준 (기본 0.1점)")
     parser.add_argument("--latency-tie", type=float, default=0.1, help="생성 시간 상대 차이 기준 (기본 0.1 = 10%%)")
     parser.add_argument("--examples", type=int, default=3, help="유형별 대표 사례 수 (질문 기준)")
     args = parser.parse_args()
 
-    runs = [load_run(run_dir) for run_dir in args.run_dir]
-    name = args.name or f"report_{runs[0]['config']['run_id']}"
+    runs = [load_run(run_dir) for run_dir in find_run_dirs(args.run_dir)]
+    print(f"대상 실행 {len(runs)}개: {', '.join(str(run['dir']) for run in runs)}")
+    name = args.name or (f"report_{runs[0]['config']['run_id']}" if len(runs) == 1
+                         else f"report_combined_{datetime.now():%Y%m%d_%H%M%S}")
     ties = {"usable": args.usable_tie, "accuracy": args.accuracy_tie, "latency": args.latency_tie}
     run_ids = ", ".join("`" + run["config"]["run_id"] + "`" for run in runs)
 
@@ -480,6 +570,8 @@ def main():
         "비교 우선순위: 1) 사용 가능 답변 비율 2) 보안성(외부 전송 여부) 3) 정확성 평균 점수 4) 생성 시간 5) 비용",
         "",
     ]
+    if len(runs) > 1:
+        lines += combined_section(runs)
     metric_rows = []
     for number, run in enumerate(runs, start=1):
         section, metrics = run_section(run, number, ties, args.examples)

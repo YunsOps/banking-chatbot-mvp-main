@@ -166,6 +166,9 @@ $env:PYTHONIOENCODING = "utf-8"
 # 최종 비교용 질문은 프롬프트·조건 확정 후 사용
 .\.venv\Scripts\python.exe evaluation/scripts/run_api_batch.py --questions evaluation/questions/llm_eval_questions_final_30.jsonl --run-id api_final_01
 
+# 모델별 통합 비교: 같은 질문 파일로 실행·채점한 여러 결과 폴더를 한 보고서로
+.\.venv\Scripts\python.exe evaluation/scripts/build_report.py --run-dir "evaluation/results/api_final_*" --name report_final_all
+
 # 평가 도구 자체 검증: 실제 모델 호출 없음
 .\.venv\Scripts\python.exe -m pytest evaluation/tests -q -p no:cacheprovider
 ```
@@ -173,6 +176,9 @@ $env:PYTHONIOENCODING = "utf-8"
 최종 세트도 수집 후 해당 결과 폴더에 채점·보고서 명령을 적용합니다.
 같은 `run-id`로 배치를 다시 실행하면 응답이 덮어써집니다. 채점은 완료된 건을 건너뛰며 `--rejudge`를 주면 전체 재채점합니다.
 보고서는 기존 파일만 읽으므로 다시 생성해도 모델 호출 비용이 없습니다.
+`--run-dir`에는 여러 결과 폴더, 상위 폴더(`evaluation/results`), 따옴표로 감싼 와일드카드를 줄 수 있으며
+실행이 2개 이상이면 보고서 맨 앞에 통합 비교 절이 추가됩니다. 모델별로 비교하려면 서버 `OLLAMA_MODEL`을 바꿔 재시작하고,
+`EVAL_API_LOCAL_MODEL`을 같은 값으로 맞춘 뒤 새 `run-id`로 수집·채점합니다.
 준비되지 않은 `cloud` 생성 모델은 평가 대상에서 제외됩니다.
 
 질문·정책을 수정한 경우에만 아래 명령으로 CSV·JSONL을 함께 재생성합니다.
