@@ -1,0 +1,4 @@
+# 평가 실행 환경: 서비스 의존성 + 평가 모델(채점) 호출용 OpenAI 연결
+# 설치 (저장소 루트에서): pip install -r evaluation/requirements.txt
+-r ../requirements.txt
+langchain-openai==1.7.1
