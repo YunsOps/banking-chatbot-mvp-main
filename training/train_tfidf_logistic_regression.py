@@ -142,7 +142,7 @@ print(f"Test 정상 은행 문의 오차단율: {false_block_rate:.2%}")
 
 
 # 모델 저장
-model_dir = Path(__file__).resolve().parent.parent / "model"
+model_dir = Path(__file__).resolve().parent.parent / "models"
 model_dir.mkdir(exist_ok=True)
 
 model_path = model_dir / "tfidf_logistic_regression.joblib"

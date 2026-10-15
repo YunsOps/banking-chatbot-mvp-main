@@ -1,5 +1,25 @@
-fastapi
-uvicorn
-httpx
-python-dotenv
+# Python 3.12. 설치·실행 방법은 루트 README.md 참고.
+# 서비스·화면
+fastapi==0.143.0
+uvicorn==0.54.0
+httpx==0.28.1
+python-dotenv==1.2.4
+pydantic==2.14.1
+langchain-core==1.6.10
 langchain-ollama==1.1.0
+streamlit==1.66.0
+
+# 분류 모델 추론·학습 (GPU용 torch는 README의 설치 명령 참고)
+torch==2.11.0
+transformers==5.19.0
+datasets==5.1.0
+accelerate==1.15.0
+numpy==2.5.4
+pandas==3.0.6
+scikit-learn==1.9.1
+joblib==1.6.0
+kiwipiepy==0.24.0
+
+# 생성 답변 평가·평가 도구 검증
+langchain-openai==1.7.1
+pytest==9.1.1

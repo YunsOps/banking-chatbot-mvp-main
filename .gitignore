@@ -7,3 +7,6 @@
 __pycache__/
 *.py[cod]
 .DS_Store
+.pytest_cache/
+# 평가 원본 결과는 로컬 보관. 공유할 보고서는 검토 후 별도로 추가한다.
+/evaluation/results/

@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="은행 상담 챗봇 API", version="0.1.0", lifespan=lifespan,
-              description="질문 분류(은행 업무 10종 + 업무 외) 후 유형별 지침으로 답변을 생성합니다. 형식: docs/api_spec.md")
+              description="질문 분류(은행 업무 10종 + 업무 외) 후 유형별 지침으로 답변을 생성합니다.")
 app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 

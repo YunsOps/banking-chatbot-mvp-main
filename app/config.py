@@ -2,7 +2,7 @@
 
 기본값은 학습 담당 스크립트의 저장 형식에 맞춘다.
 - BERT: training/evaluate_klue_bert_base.py → models/klue_bert_base (save_pretrained, 토크나이저 포함), max_length 512
-- 베이스라인: training/train_tfidf_logistic_regression.py → model/tfidf_logistic_regression.joblib
+- 베이스라인: training/train_tfidf_logistic_regression.py → models/tfidf_logistic_regression.joblib
   ({"vectorizer": ..., "model": ...} 형태로 저장)
 """
 
@@ -28,7 +28,12 @@ CLASSIFIER_TYPE = os.getenv("CLASSIFIER_TYPE", "bert")              # "bert" 또
 BERT_MODEL_DIR = _path("BERT_MODEL_DIR", "models/klue_bert_base")
 BERT_TOKENIZER_FALLBACK = os.getenv("BERT_TOKENIZER_FALLBACK", "klue/bert-base")
 BERT_MAX_LENGTH = int(os.getenv("BERT_MAX_LENGTH", "512"))         # 학습 스크립트와 같은 값
-BASELINE_MODEL_PATH = _path("BASELINE_MODEL_PATH", "model/tfidf_logistic_regression.joblib")
+BASELINE_MODEL_PATH = _path("BASELINE_MODEL_PATH", "models/tfidf_logistic_regression.joblib")
+# 경로 설정이 없고 새 위치에 파일이 없을 때만 기존 저장 위치를 사용한다.
+if "BASELINE_MODEL_PATH" not in os.environ and not BASELINE_MODEL_PATH.exists():
+    legacy_model_path = PROJECT_DIR / "model" / "tfidf_logistic_regression.joblib"
+    if legacy_model_path.exists():
+        BASELINE_MODEL_PATH = legacy_model_path
 # 베이스라인이 직접 만든 토크나이저(training/korean_tokenizer.py)를 쓰면, 불러올 때 이 폴더에서 찾는다
 TRAINING_DIR = _path("TRAINING_DIR", "training")
 OUT_OF_SCOPE_LABEL = os.getenv("OUT_OF_SCOPE_LABEL", "업무 외")

@@ -1,4 +1,4 @@
-"""요청·응답 형식 (docs/api_spec.md 기준)."""
+"""요청·응답 형식. 실행 중인 API의 /docs에서 확인할 수 있다."""
 
 from typing import Literal
 
