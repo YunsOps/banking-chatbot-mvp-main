@@ -1,4 +1,4 @@
-"""은행 상담 챗봇 FastAPI 서비스.
+"""KANT BANK AI 상담 FastAPI 서비스.
 
 실행 (프로젝트 루트에서):
     uvicorn app.main:app --reload
@@ -37,8 +37,8 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="은행 상담 챗봇 API", version="0.1.0", lifespan=lifespan,
-              description="질문 분류(은행 업무 10종 + 업무 외) 후 유형별 지침으로 답변을 생성합니다.")
+app = FastAPI(title="KANT BANK AI 상담 API", version="0.1.0", lifespan=lifespan,
+              description="가상 은행 상담 데모. 질문 분류(은행 업무 10종 + 업무 외) 후 일반적인 이용 절차를 안내하며 실제 조회·거래는 수행하지 않습니다.")
 app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 

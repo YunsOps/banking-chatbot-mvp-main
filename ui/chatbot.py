@@ -12,6 +12,20 @@ API_URL = os.getenv("CHAT_API_URL", "http://127.0.0.1:8000").rstrip("/")
 MAX_CHARS = int(os.getenv("MAX_QUESTION_CHARS", "500"))
 # API의 생성 제한 시간보다 조금 더 기다린다.
 TIMEOUT = float(os.getenv("LLM_TIMEOUT_S", "30")) + 15
+EXAMPLE_QUESTIONS = (
+    "대출 만기 연장은 어떻게 준비하나요?",
+    "자동이체를 해지하려면 어떻게 하나요?",
+    "환전 신청은 일반적으로 어떻게 하나요?",
+    "예금 만기 전에 해지하면 어떻게 되나요?",
+)
+
+
+def submit_question(question):
+    """직접 입력과 대표 질문을 같은 처리 흐름으로 보낸다."""
+    st.session_state.messages.append({"role": "user", "content": question})
+    st.session_state.pending = question
+    # 입력창을 비활성화한 화면을 먼저 그린 후 API를 호출한다.
+    st.rerun()
 
 
 def request_answer(question):
@@ -47,9 +61,8 @@ def request_answer(question):
     return {"role": "assistant", "content": message, "failed": True}
 
 
-st.set_page_config(page_title="은행 상담 챗봇", page_icon="🏦")
-st.title("은행 상담 챗봇")
-st.caption("은행 업무의 일반적인 절차를 안내합니다. 각 질문은 이전 대화와 관계없이 처리됩니다.")
+st.set_page_config(page_title="KANT BANK | AI 상담", page_icon="🏦")
+st.title("KANT BANK")
 
 # 접속한 사용자별로 화면 기록만 보관한다. API에는 새 질문 하나만 보낸다.
 if "messages" not in st.session_state:
@@ -62,8 +75,19 @@ if st.button("화면 초기화", disabled=busy):
     st.session_state.messages = []
     st.rerun()
 
+if not st.session_state.messages:
+    with st.chat_message("assistant", avatar="🏦"):
+        st.write("안녕하세요. KANT BANK AI 상담 도우미입니다.")
+        st.write("예금·대출·이체·환전 등 궁금한 은행 업무를 입력해 주세요.")
+    st.caption("자주 하는 질문")
+    columns = st.columns(2)
+    for index, example in enumerate(EXAMPLE_QUESTIONS):
+        with columns[index % 2]:
+            if st.button(example, key=f"example_{index}", disabled=busy, width="stretch"):
+                submit_question(example)
+
 for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
+    with st.chat_message(message["role"], avatar="🏦" if message["role"] == "assistant" else None):
         if message.get("label"):
             st.caption(f"분류된 상담 유형: {message['label']}")
         if message.get("failed"):
@@ -71,8 +95,9 @@ for message in st.session_state.messages:
         else:
             st.write(message["content"])
 
+st.caption("각 질문은 개별적으로 처리됩니다. 비밀번호·인증번호 등 개인정보는 입력하지 마세요.")
 question = st.chat_input(
-    "은행 업무를 질문해 주세요.",
+    "KANT BANK에 궁금한 은행 업무를 물어보세요.",
     max_chars=MAX_CHARS,
     disabled=busy,
 )
@@ -81,10 +106,7 @@ if question:
     if not question:
         st.warning("질문을 입력해 주세요.")
     else:
-        st.session_state.messages.append({"role": "user", "content": question})
-        st.session_state.pending = question
-        # 입력창을 비활성화한 화면을 먼저 그린 후 API를 호출한다.
-        st.rerun()
+        submit_question(question)
 
 if busy:
     with st.spinner("답변을 생성하고 있습니다…"):

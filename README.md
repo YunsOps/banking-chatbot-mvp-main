@@ -1,8 +1,9 @@
-# 은행 상담 챗봇 MVP
+# KANT BANK AI 상담 MVP
 
-은행 업무 질문을 **BERT로 분류하고, 유형별 지침을 적용한 Qwen으로 일반적인 이용 절차를 안내**하는 서비스입니다.
+가상 은행 **KANT BANK**의 상담 챗봇입니다. 은행 업무 질문을 **BERT로 분류하고, 유형별 지침을 적용한 Qwen으로 일반적인 이용 절차를 안내**합니다.
 Streamlit 화면 → FastAPI → BERT → LangChain·Ollama 순서로 처리합니다.
 
+- KANT BANK는 시연용 가상 은행입니다. 실제 은행과 관계가 없으며 자체 상품·앱·영업점·고객센터 정보는 제공하지 않습니다.
 - 은행 상담 10개 유형과 업무 외 질문을 분류합니다.
 - 업무 외 질문은 고정 안내를 반환하며, 분류기를 통과한 질문도 LLM이 원문을 다시 확인합니다.
 - 질문 하나당 응답 하나를 생성합니다. 화면의 이전 대화는 모델에 전달하지 않습니다.
@@ -15,7 +16,8 @@ Streamlit 화면 → FastAPI → BERT → LangChain·Ollama 순서로 처리합�
 | 경로 | 역할 |
 | --- | --- |
 | `app/` | FastAPI, 분류기 로딩, 답변 생성, 정책, 요청 기록 |
-| `ui/chatbot.py` | 질문 입력, 상담 유형·답변 표시, 처리 중·실패 안내 |
+| `ui/chatbot.py` | KANT BANK 인사말·대표 질문 4개, 질문 입력, 상담 유형·답변 표시, 처리 중·실패 안내 |
+| `.streamlit/config.toml` | KANT BANK 화면 색상 |
 | `prompts/fixed_messages.json` | 업무 외·의도 불명·처리 실패 고정 문구 |
 | `training/` | TF-IDF·BERT 학습 및 분류 성능 평가 |
 | `evaluation/` | 생성 답변 배치 수집·채점·보고서와 평가 도구 테스트 |
@@ -127,6 +129,7 @@ New-NetFirewallRule -DisplayName "BankingChatbot UI 8501 LAN" -Direction Inbound
 `confidence`는 분류 확률이며 답변 정확도가 아닙니다.
 
 시연에서는 은행 질문, 업무 외 질문, 모호한 질문, 처리 중 입력 잠금, 연결 실패 안내, 화면 초기화를 확인합니다.
+첫 화면의 대표 질문을 클릭하면 직접 입력과 동일한 `/chat` API로 전송합니다. 화면 초기화 시 대표 질문이 다시 표시됩니다.
 알려진 한계: 일부 생성 답변이 정책에서 금지한 앱 메뉴 이름을 안내합니다. 기능 동작 성공과 답변 품질을 구분합니다.
 
 ## 4. 분류 모델 학습·평가

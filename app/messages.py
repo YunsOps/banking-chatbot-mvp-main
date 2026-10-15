@@ -9,7 +9,7 @@ import re
 from app import config
 
 DEFAULT_MESSAGES = {
-    "out_of_scope": "은행 업무와 관련된 질문만 안내해드릴 수 있습니다. 예금·대출·이체·환전 등 은행 업무에 대해 질문해 주세요.",
+    "out_of_scope": "KANT BANK AI 상담은 은행 업무와 관련된 질문을 안내합니다. 예금·대출·이체·환전 등 은행 업무에 대해 질문해 주세요.",
     "unclear": "문의 내용을 명확히 파악하기 어려워 안내해드릴 수 없습니다.",
     "error": "현재 답변을 제공하기 어렵습니다. 잠시 후 다시 시도해 주세요.",
 }
