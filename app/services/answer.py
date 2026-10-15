@@ -1,8 +1,10 @@
+import os
 import urllib.request
 from functools import lru_cache
 
 import httpx
 from langchain_core.output_parsers import StrOutputParser
+from openai import APITimeoutError
 from langchain_ollama import ChatOllama
 
 from app import config
@@ -29,19 +31,40 @@ def get_local_chain():
     return PROMPT | llm | StrOutputParser()
 
 
-def generate_answer(question: str, label: str, model: str) -> str:
-    if model == "cloud":
-        raise LLMNotConfigured("상용 LLM 연결은 아직 구성하지 않았습니다.")
+def cloud_api_key() -> str | None:
+    return os.getenv(config.CLOUD_API_KEY_ENV) or None
 
-    if model != "local":
+
+@lru_cache(maxsize=1)
+def get_cloud_chain():
+    from langchain_openai import ChatOpenAI
+
+    llm = ChatOpenAI(
+        model=config.CLOUD_LLM_MODEL,
+        api_key=cloud_api_key(),
+        temperature=0,
+        max_tokens=256,
+        timeout=config.LLM_TIMEOUT_S,
+        max_retries=0,
+    )
+
+    return PROMPT | llm | StrOutputParser()
+
+
+def generate_answer(question: str, label: str, model: str) -> str:
+    if model not in ("local", "cloud"):
         raise ValueError(f"지원하지 않는 생성 모델 선택: {model}")
 
+    if model == "cloud" and not is_cloud_configured():
+        raise LLMNotConfigured(f"상용 LLM 키({config.CLOUD_API_KEY_ENV})가 설정되지 않았습니다.")
+
+    chain = get_cloud_chain() if model == "cloud" else get_local_chain()
     try:
-        answer = get_local_chain().invoke({
+        answer = chain.invoke({
             "question": question,
             "label": label,
         }).strip()
-    except httpx.TimeoutException as exc:
+    except (httpx.TimeoutException, APITimeoutError) as exc:
         raise TimeoutError("생성 모델 응답 제한시간 초과") from exc
 
     if not answer:
@@ -72,5 +95,5 @@ def is_local_available() -> bool:
 
 
 def is_cloud_configured() -> bool:
-    # 상용 모델은 현재 연결하지 않았으므로 준비 상태를 False로 반환
-    return False
+    # 키가 있을 때만 상용 모델을 준비된 것으로 본다 (호출 자체는 실제 요청으로 확인)
+    return cloud_api_key() is not None

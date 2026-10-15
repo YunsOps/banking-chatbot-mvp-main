@@ -50,6 +50,7 @@ FIXED_MESSAGES_PATH = _path("FIXED_MESSAGES_PATH", "prompts/fixed_messages.json"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:9b")
 CLOUD_API_KEY_ENV = os.getenv("CLOUD_API_KEY_ENV", "OPENAI_API_KEY")  # 상용 API 키가 들어 있는 환경 변수 이름
+CLOUD_LLM_MODEL = os.getenv("CLOUD_LLM_MODEL", "gpt-5.6-luna")       # 상용 생성 모델 (채점 모델과 달라야 편향이 적음)
 
 # 실행 기록 (Git 제외: /logs/)
 REQUEST_LOG_PATH = _path("REQUEST_LOG_PATH", "logs/requests.jsonl")
